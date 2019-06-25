@@ -59,12 +59,16 @@ def get_url(message, exclude):
         while count < len(temp):
             location = location + " " + temp[count]
             count = count + 1
+    #if out of range
     else:
         try:
             location = temp[1]
         except IndexError:
-            return None
+            return "Index Error", None
     geocode_result = gmaps.geocode(location)
+    #if bad input
+    if not geocode_result:
+        return "Input Error", None
     latitude = geocode_result[0]["geometry"]["location"]['lat']
     longitude = geocode_result[0]["geometry"]["location"]['lng']
     location = geocode_result[0]["formatted_address"]
@@ -298,8 +302,11 @@ async def on_message(message):
         await message.channel.send(output)
     if message.content.startswith('!current'):
         url = get_url(message.content, excludeExceptHourly)
-        if url is None:
-            await message.channel.send(message.author.mention + "\n" + "**Error:** Incorrect format, ```$cw location``` ")
+        if url == "Index Error" or url == "Input Error":
+            if url == "Index Error":
+                await message.channel.send(message.author.mention + "\n" + "**Error:** Incorrect format, ```!current location``` ")
+            if url == "Input Error":
+                await message.channel.send("**Error:** Invalid input, input name or address of location ```!current location``` ")
         else:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as r:
@@ -312,8 +319,11 @@ async def on_message(message):
     if message.content.startswith('!forecast'):
         url, location = get_url(message.content, excludeExceptDaily)
         print(url)
-        if url is None:
-            await message.channel.send("**Error:** Incorrect format, ```$f location``` ")
+        if url == "Index Error" or url == "Input Error":
+            if url == "Index Error":
+                await message.channel.send("**Error:** Incorrect format, ```!forecast location``` ")
+            if url == "Input Error":
+                await message.channel.send("**Error:** Invalid input, input name or address of location ```!forecast location``` ")
         else:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as r:
@@ -324,4 +334,4 @@ async def on_message(message):
             await message.channel.send(file=discord.File('rendered_image.png'))
 
 
-client.run('')
+client.run('..-')
