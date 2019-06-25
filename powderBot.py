@@ -166,7 +166,9 @@ def forecast(json_data, location):
         if (icon[count] == "partly-cloudy-night"):
             icon[count] = "partly_cloudy_night"
         precipChance[count] = "{:.0%}".format(json_data["daily"]["data"][hours]["precipProbability"])
-        if precipChance[count] != "0%":
+        print(precipChance[count])
+        #Below 3% rain type is not displayed
+        if precipChance[count] != "0%" and precipChance[count] != "1%" and precipChance[count] != "2%" and precipChance[count] != "3%":
             precipType[count] = json_data["daily"]["data"][hours]["precipType"]
         count+=1
 
@@ -304,9 +306,9 @@ async def on_message(message):
         url = get_url(message.content, excludeExceptHourly)
         if url == "Index Error" or url == "Input Error":
             if url == "Index Error":
-                await message.channel.send(message.author.mention + "\n" + "**Error:** Incorrect format, ```!current location``` ")
+                await message.channel.send(message.author.mention + "\n**Error:** Incorrect format, ```!current location``` ")
             if url == "Input Error":
-                await message.channel.send("**Error:** Invalid input, input name or address of location ```!current location``` ")
+                await message.channel.send(message.author.mention + "\n**Error:** Invalid input, input name or address of location ```!current location``` ")
         else:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as r:
@@ -321,9 +323,9 @@ async def on_message(message):
         print(url)
         if url == "Index Error" or url == "Input Error":
             if url == "Index Error":
-                await message.channel.send("**Error:** Incorrect format, ```!forecast location``` ")
+                await message.channel.send(message.author.mention + "**\nError:** Incorrect format, ```!forecast location``` ")
             if url == "Input Error":
-                await message.channel.send("**Error:** Invalid input, input name or address of location ```!forecast location``` ")
+                await message.channel.send(message.author.mention + "**\nError:** Invalid input, input name or address of location ```!forecast location``` ")
         else:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as r:
