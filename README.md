@@ -1,1 +1,1 @@
-# Snow-Forecast-Discord-Bot
+# Weather-Discord-Bot
