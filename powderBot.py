@@ -9,7 +9,8 @@
     # highest storm in region
     #Image library to generate weather image
 
-import datetime
+from datetime import datetime, timedelta
+from dateutil import tz
 import discord
 import googlemaps
 import aiohttp
@@ -76,6 +77,17 @@ def get_url(message, exclude):
     url = api_url + str(api_key) + "/" + str(latitude) + "," + str(longitude) + "?units=us&exclude=" + exclude
     return url, location
 
+#func time_zone_util()
+#takes in timezone and converts current UTC time to specified time zone, returns new timezone time and either AM or PM
+def time_zone_util(time, time_zone):
+
+    to_zone = tz.gettz(time_zone)
+
+    new_time = int(time.astimezone(to_zone).strftime('%#I'))
+    am_pm = time.astimezone(to_zone).strftime('%p')
+
+    return new_time, am_pm
+
 #currentWeather()
 #func
 """
@@ -97,12 +109,15 @@ def currentWeather(json_data):
     output = output + "```"
     return output
 """
-def currentWeather(json_data):
+def currentWeather(json_data, location):
     count = 0
     temp, precipChance, precipType, icon = [None] * 5, [None] * 5, [None] * 5, [None] * 5
+    time = json_data["hourly"]["data"][0]["time"]
+    time_zone = json_data["timezone"]
     #Loop goes through the JSON file and outputs the temperature and precip every 4 hours for 8 hours
-    while count < 3:
-        hours = 4*count
+    while count < 5:
+        hours = 3*count
+        summary = json_data["hourly"]["summary"]
         temp[count]= round(json_data["hourly"]["data"][hours]["temperature"])
         icon[count] = json_data["hourly"]["data"][hours]["icon"]
         if(icon[count] == "clear-day"):
@@ -114,14 +129,18 @@ def currentWeather(json_data):
         if (icon[count] == "partly-cloudy-night"):
             icon[count] = "partly_cloudy_night"
         precipChance[count] = "{:.0%}".format(json_data["hourly"]["data"][hours]["precipProbability"])
-        if precipChance != "0%":
-            precipType = json_data["hourly"]["data"][hours]["precipType"]
+        if precipChance[count] != "0%" and precipChance[count] != "1%" and precipChance[count] != "2%" and precipChance[count] != "3%" and precipChance[count] != "4%":
+            precipType[count] = json_data["hourly"]["data"][hours]["precipType"]
+        count = count + 1
 
+
+    img = Image.new('RGB', (1050, 375), color='white')
 
     #Declare fonts
     title_font = ImageFont.truetype('Lib/Fonts/FiraSans-ExtraBold.ttf', 50)
     location_font = ImageFont.truetype('Lib/Fonts/FiraSans-Regular.ttf', 34)
-    day_font = ImageFont.truetype('Lib/Fonts/FiraSans-ExtraBold.ttf', 34)
+    summary_font = ImageFont.truetype('Lib/Fonts/FiraSans-Regular.ttf', 21)
+    time_font = ImageFont.truetype('Lib/Fonts/FiraSans-ExtraBold.ttf', 31)
     degree_font = ImageFont.truetype('Lib/Fonts/FiraSans-SemiBold.ttf', 34)
     precip_font = ImageFont.truetype('Lib/Fonts/FiraSans-Bold.ttf', 24)
     precip_value_font = ImageFont.truetype('Lib/Fonts/FiraSans-Regular.ttf', 24)
@@ -141,7 +160,77 @@ def currentWeather(json_data):
     #drizzle
     #storm = Image.open('Lib/Icons/Cloud-Lightning.svg')
 
+    #Title + Subtitle
+    d = ImageDraw.Draw(img)
+    d.text((35, 11), "Hourly Forecast", font=title_font, fill='black')
+    d.text((400, 26), location, font=location_font, fill='black')
+    d.text((35, 68), summary, font=summary_font, fill='black')
 
+    # Rectangle
+    d.rectangle([(24, 96), (218, 352)], fill=(214, 214, 214), outline=None)
+    d.rectangle([(226, 96), (420, 352)], fill=(214, 214, 214), outline=None)
+    d.rectangle([(427, 96), (621, 352)], fill=(214, 214, 214), outline=None)
+    d.rectangle([(629, 96), (823, 352)], fill=(214, 214, 214), outline=None)
+    d.rectangle([(830, 96), (1024, 352)], fill=(214, 214, 214), outline=None)
+
+    # Time
+    from_zone = tz.gettz('UTC')
+    utc = datetime.utcnow()
+    time_utc = utc.replace(tzinfo = from_zone)
+
+    time_hour1, am_pm1 = time_zone_util(time_utc, time_zone)
+    time_hour2,am_pm2 = time_zone_util(time_utc + timedelta(hours=3), time_zone)
+    time_hour3,am_pm3 = time_zone_util(time_utc + timedelta(hours=6),time_zone)
+    time_hour4,am_pm4 = time_zone_util(time_utc + timedelta(hours=9),time_zone)
+    time_hour5,am_pm5 = time_zone_util(time_utc + timedelta(hours=12),time_zone)
+
+    # Time Width
+    time_width, trash = d.textsize(str(time_hour1)+ am_pm1, font=time_font)
+    time_width2, trash = d.textsize(str(time_hour2)+ am_pm2, font=time_font)
+    time_width3, trash = d.textsize(str(time_hour3)+ am_pm3, font=time_font)
+    time_width4, trash = d.textsize(str(time_hour4)+ am_pm4, font=time_font)
+    time_width5, trash = d.textsize(str(time_hour5)+ am_pm5, font=time_font)
+
+    # Time input
+    d.text((((194 - time_width) / 2) + 24, 105), str(time_hour1) + am_pm1, font=time_font, fill="black")
+    d.text((((194 - time_width2) / 2) + 226, 105), str(time_hour2) + am_pm2, font=time_font, fill="black")
+    d.text((((194 - time_width3) / 2) + 427, 105), str(time_hour3) + am_pm3, font=time_font, fill="black")
+    d.text((((194 - time_width4) / 2) + 629, 105), str(time_hour4) + am_pm4, font=time_font, fill="black")
+    d.text((((194 - time_width5) / 2) + 830, 105), str(time_hour5) + am_pm5, font=time_font, fill="black")
+
+    # Icon
+    img.paste(eval(icon[0]), (59, 147))
+    img.paste(eval(icon[1]), (261, 147))
+    img.paste(eval(icon[2]), (462, 147))
+    img.paste(eval(icon[3]), (664, 147))
+    img.paste(eval(icon[4]), (865, 147))
+
+    # Degree Text Width
+    temp_holder = str(str(temp[0]) + u"\u00b0" + "F")
+    temp_width, throwaway = d.textsize(temp_holder, font=degree_font)
+
+    # Degree
+    d.text((((194 - temp_width) / 2) + 24, 263), str(temp[0]) + u"\u00b0" + "F",font=degree_font, fill="black")
+    d.text((((194 - temp_width) / 2) + 226, 263), str(temp[1]) + u"\u00b0" + "F",font=degree_font, fill="black")
+    d.text((((194 - temp_width) / 2) + 427, 263), str(temp[2]) + u"\u00b0" + "F",font=degree_font, fill="black")
+    d.text((((194 - temp_width) / 2) + 629, 263), str(temp[3]) + u"\u00b0" + "F",font=degree_font, fill="black")
+    d.text((((194 - temp_width) / 2) + 830, 263), str(temp[4]) + u"\u00b0" + "F",font=degree_font, fill="black")
+
+    # Precip
+    d.text((61, 300), "Precip", font=precip_font, fill=(43, 43, 43))
+    d.text((263, 300), "Precip", font=precip_font, fill=(43, 43, 43))
+    d.text((465, 300), "Precip", font=precip_font, fill=(43, 43, 43))
+    d.text((666, 300), "Precip", font=precip_font, fill=(43, 43, 43))
+    d.text((867, 300), "Precip", font=precip_font, fill=(43, 43, 43))
+    # Precip Value
+    d.text((139, 300), str(precipChance[0]), font=precip_value_font, fill="black")
+    d.text((341, 300), str(precipChance[1]), font=precip_value_font, fill="black")
+    d.text((541, 300), str(precipChance[2]), font=precip_value_font, fill="black")
+    d.text((744, 300), str(precipChance[3]), font=precip_value_font, fill="black")
+    d.text((945, 300), str(precipChance[4]), font=precip_value_font, fill="black")
+
+    img.save("hourly_rendered_image.png")
+    return
 
 
 #forecast()
@@ -154,6 +243,7 @@ def forecast(json_data, location):
     icon, temp_high, temp_low, precipChance, precipType = [None] * 5, [None] * 5, [None] * 5, [0] * 5, [None] * 5
     while count < 5:
         hours = count
+        summary = json_data["daily"]["summary"]
         temp_high[count] = round(json_data["daily"]["data"][hours]["temperatureHigh"])
         temp_low[count] = round(json_data["daily"]["data"][hours]["temperatureLow"])
         icon[count] = json_data["daily"]["data"][hours]["icon"]
@@ -166,9 +256,8 @@ def forecast(json_data, location):
         if (icon[count] == "partly-cloudy-night"):
             icon[count] = "partly_cloudy_night"
         precipChance[count] = "{:.0%}".format(json_data["daily"]["data"][hours]["precipProbability"])
-        print(precipChance[count])
-        #Below 3% rain type is not displayed
-        if precipChance[count] != "0%" and precipChance[count] != "1%" and precipChance[count] != "2%" and precipChance[count] != "3%":
+        #Below 4% rain type is not displayed
+        if precipChance[count] != "0%" and precipChance[count] != "1%" and precipChance[count] != "2%" and precipChance[count] != "3%" and precipChance[count] != "4%":
             precipType[count] = json_data["daily"]["data"][hours]["precipType"]
         count+=1
 
@@ -176,48 +265,26 @@ def forecast(json_data, location):
     #Declare fonts
     title_font = ImageFont.truetype('Lib/Fonts/FiraSans-ExtraBold.ttf', 50)
     location_font = ImageFont.truetype('Lib/Fonts/FiraSans-Regular.ttf', 34)
-    day_font = ImageFont.truetype('Lib/Fonts/FiraSans-ExtraBold.ttf', 34)
+    summary_font = ImageFont.truetype('Lib/Fonts/FiraSans-Regular.ttf', 21)
+    day_font = ImageFont.truetype('Lib/Fonts/FiraSans-ExtraBold.ttf', 31)
     degree_font = ImageFont.truetype('Lib/Fonts/FiraSans-SemiBold.ttf', 34)
     precip_font = ImageFont.truetype('Lib/Fonts/FiraSans-Bold.ttf', 24)
     precip_value_font = ImageFont.truetype('Lib/Fonts/FiraSans-Regular.ttf', 24)
 
-    #Day Widths
-    mon = "Monday"
-    tue = "Tuesday"
-    wed = "Wednesday"
-    thur = "Thursday"
-    fri = "Friday"
-    sat = "Saturday"
-    sun = "Sunday"
-    day_of_week = datetime.datetime.today().weekday()
-    week = [mon,tue,wed,thur,fri,sat,sun]
+    #Day Values
+    day_of_week = datetime.today().weekday()
+    week = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
     forecast_days = [None] * 5
 
-    #Fill forecast days array basedon day
-    if(0 <= day_of_week <= 2):
-        for day_count in range(5):
-            forecast_days[day_count] = week[day_of_week + day_count]
-    if(day_of_week == 3):
-        for day_count in range(4):
-            forecast_days[day_count] = week[day_of_week + day_count]
-        forecast_days[4] = week[0]
-    if(day_of_week == 4):
-        for day_count in range(3):
-            forecast_days[day_count] = week[day_of_week + day_count]
-        forecast_days[3] = week[0]
-        forecast_days[4] = week[1]
-    if(day_of_week == 5):
-        for day_count in range(2):
-            forecast_days[day_count] = week[day_of_week + day_count]
-        forecast_days[2] = week[0]
-        forecast_days[3] = week[1]
-        forecast_days[4] = week[2]
-    if(day_of_week == 6):
-        forecast_days[0] = week[6]
-        forecast_days[1] = week[0]
-        forecast_days[2] = week[1]
-        forecast_days[3] = week[2]
-        forecast_days[4] = week[3]
+    #For Loop to get next 5 days
+    day_count = 0
+    for day_count in range(0,5):
+        forecast_days[day_count] = week[day_of_week]
+        day_of_week = day_of_week + 1
+        day_count = day_count + 1
+        if day_of_week == 7:
+            day_of_week = 0
+
 
     #Icons
     #TODO: add drizzle/storm based on intensity/lightning
@@ -234,27 +301,28 @@ def forecast(json_data, location):
     #drizzle
     #storm = Image.open('Lib/Icons/Cloud-Lightning.svg')
 
-
     #Title + Subtitle
     d = ImageDraw.Draw(img)
-    d.text((35, 14), "5 Day Forecast", font=title_font, fill='black')
-    d.text((375, 29), location, font=location_font, fill='black')
+    d.text((35, 11), "5 Day Forecast", font=title_font, fill='black')
+    d.text((375, 26), location, font=location_font, fill='black')
+    d.text((35, 68), summary, font=summary_font, fill= 'black')
 
-    #Box Outlines
-    d.rectangle([(24,98), (218,352)], fill = (214,214,214), outline=None)
-    d.rectangle([(226,98), (420,352)], fill = (214,214,214), outline=None)
-    d.rectangle([(427,98), (621,352)], fill = (214,214,214), outline=None)
-    d.rectangle([(629,98), (823,352)], fill = (214,214,214), outline=None)
-    d.rectangle([(830,98), (1024,352)], fill = (214,214,214), outline=None)
 
-    #Day Width
-    text_width, text_height =d.textsize(forecast_days[0], font=day_font)
-    text_width2, text_height =d.textsize(forecast_days[1], font=day_font)
-    text_width3, text_height =d.textsize(forecast_days[2], font=day_font)
-    text_width4, text_height =d.textsize(forecast_days[3], font=day_font)
-    text_width5, text_height =d.textsize(forecast_days[4], font=day_font)
+    #Rectangle
+    d.rectangle([(24,96), (218,352)], fill = (214,214,214), outline=None)
+    d.rectangle([(226,96), (420,352)], fill = (214,214,214), outline=None)
+    d.rectangle([(427,96), (621,352)], fill = (214,214,214), outline=None)
+    d.rectangle([(629,96), (823,352)], fill = (214,214,214), outline=None)
+    d.rectangle([(830,96), (1024,352)], fill = (214,214,214), outline=None)
 
-    #Day
+    #Day of The Week Text Width
+    text_width, trash =d.textsize(forecast_days[0], font=day_font)
+    text_width2, trash =d.textsize(forecast_days[1], font=day_font)
+    text_width3, trash =d.textsize(forecast_days[2], font=day_font)
+    text_width4, trash =d.textsize(forecast_days[3], font=day_font)
+    text_width5, trash =d.textsize(forecast_days[4], font=day_font)
+
+    #Day of The Week
     d.text((((194 - text_width) / 2) + 24, 105), forecast_days[0], font=day_font, fill= "black")
     d.text((((194 - text_width2) / 2) + 226, 105), forecast_days[1], font=day_font, fill= "black")
     d.text((((194 - text_width3) / 2) + 427, 105), forecast_days[2], font=day_font, fill= "black")
@@ -268,6 +336,7 @@ def forecast(json_data, location):
     img.paste(eval(icon[3]), (664, 147))
     img.paste(eval(icon[4]), (865, 147))
 
+    #Degree Text Width
     temp_holder = str(temp_high[0]) + " - " + str(temp_low[0]) + u"\u00b0" + "F"
     temp_width, throwaway = d.textsize(temp_holder, font=degree_font)
 
@@ -279,11 +348,11 @@ def forecast(json_data, location):
     d.text((((194 - temp_width) / 2) + 830, 263), str(temp_high[4]) + " - " + str(temp_low[4]) + u"\u00b0" + "F", font=degree_font, fill= "black")
 
     #Precip
-    d.text((61, 300), "Precip", font=precip_font, fill= "black")
-    d.text((263, 300), "Precip", font=precip_font, fill= "black")
-    d.text((465, 300), "Precip", font=precip_font, fill= "black")
-    d.text((666, 300), "Precip", font=precip_font, fill= "black")
-    d.text((867, 300), "Precip", font=precip_font, fill= "black")
+    d.text((61, 300), "Precip", font=precip_font, fill= (43, 43, 43))
+    d.text((263, 300), "Precip", font=precip_font, fill= (43, 43, 43))
+    d.text((465, 300), "Precip", font=precip_font, fill= (43, 43, 43))
+    d.text((666, 300), "Precip", font=precip_font, fill= (43, 43, 43))
+    d.text((867, 300), "Precip", font=precip_font, fill= (43, 43, 43))
     #Precip Value
     d.text((139, 300), str(precipChance[0]), font=precip_value_font, fill= "black")
     d.text((341, 300), str(precipChance[1]), font=precip_value_font, fill= "black")
@@ -291,7 +360,7 @@ def forecast(json_data, location):
     d.text((744, 300), str(precipChance[3]), font=precip_value_font, fill= "black")
     d.text((945, 300), str(precipChance[4]), font=precip_value_font, fill= "black")
 
-    img.save("rendered_image.png")
+    img.save("forecast_rendered_image.png")
     return
 
 
@@ -303,7 +372,8 @@ async def on_message(message):
         output = help(message.author.mention)
         await message.channel.send(output)
     if message.content.startswith('!current'):
-        url = get_url(message.content, excludeExceptHourly)
+        url, location = get_url(message.content, excludeExceptHourly)
+        print(url)
         if url == "Index Error" or url == "Input Error":
             if url == "Index Error":
                 await message.channel.send(message.author.mention + "\n**Error:** Incorrect format, ```!current location``` ")
@@ -315,8 +385,8 @@ async def on_message(message):
                     if r.status == 200:
                         json_data = await r.json()
                         print(await r.json())
-            output = currentWeather(json_data)
-            await message.channel.send(file=discord.File('rendered_image.png'))
+            output = currentWeather(json_data, location)
+            await message.channel.send(file=discord.File('hourly_rendered_image.png'))
 
     if message.content.startswith('!forecast'):
         url, location = get_url(message.content, excludeExceptDaily)
@@ -333,7 +403,6 @@ async def on_message(message):
                         json_data = await r.json()
                         #print(await r.json())
             output = forecast(json_data, location)
-            await message.channel.send(file=discord.File('rendered_image.png'))
-
+            await message.channel.send(file=discord.File('forecast_rendered_image.png'))
 
 client.run('..-')
