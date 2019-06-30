@@ -1,13 +1,11 @@
 
-#Powder Bot
-
+#Weather
 #Functions TODO
-    # Current Weather
-    # Forecast
-    # sign up for storm alert per resort, chose resorts
-    # Storm Alert for each resort, checked daily
-    # highest storm in region
-    #Image library to generate weather image
+    # precip accumilation works well hourly
+    # sign up for storm alert per IKON or EPIC resort
+    # timer to check the 3 day for storms
+    # highest winter in state
+
 
 from datetime import datetime, timedelta
 from dateutil import tz
@@ -22,9 +20,7 @@ client = discord.Client()
 #Keys
 gmaps_key = ''
 api_key = ''
-
 gmaps = googlemaps.Client(key=gmaps_key)
-
 
 #Coordinates
 latitude = 0
@@ -41,17 +37,18 @@ async def on_ready():
 
 #help()
 #func: Takes message author mentionable string and returns a list of commands with an @ author
-#param:
-#author: mentionable string for the author of the message
+#param: author: mentionable string for the author of the message
 def help(author):
-    return author + "\n __**Command List:**__ \n **!help:** Displays list of commands \n **!currentWeather location:** Displays current weather for specified location"
+    return author + "\n __**Command List:**__ \n **!help:** Displays list of commands \n **!current location:** Displays hourly weather for specified location \n **!forecast location:** Displays 5 day forecast for specified location"
 
+###
+### Helper Functions
+###
 
 #get_url()
-#func: Recieves the message content and exclusion parameter and splits the string, takes second string as location. Inputs into geocoder to gather coordinates
-#param:
-#message: string contents of message sent, "$cw location".
-#exclude: string that inputs which data to exclude in API JSON request
+#func: Recieves the message content and exclusion parameter and splits the string, takes second string and any after as location. Inputs into geocoder to gather coordinates and formatted address
+#params: message: string contents of message sent, "$cw location", exclude: string that inputs which data to exclude in API JSON request
+#returns URL and Location
 def get_url(message, exclude):
     temp = message.split()
     if len(temp) > 2:
@@ -77,41 +74,26 @@ def get_url(message, exclude):
     url = api_url + str(api_key) + "/" + str(latitude) + "," + str(longitude) + "?units=us&exclude=" + exclude
     return url, location
 
-#func time_zone_util()
-#takes in timezone and converts current UTC time to specified time zone, returns new timezone time and either AM or PM
+#time_zone_util()
+#func: Recieves time in UTC and timezone and converts time to specified time zone, returns new time's hour in 12 hour format and either AM or PM
+
 def time_zone_util(time, time_zone):
-
     to_zone = tz.gettz(time_zone)
-
     new_time = int(time.astimezone(to_zone).strftime('%#I'))
     am_pm = time.astimezone(to_zone).strftime('%p')
 
     return new_time, am_pm
 
+###
+### Primary Functions
+###
+
 #currentWeather()
-#func
-"""
-def currentWeather(json_data):
-    output = "__**Weather Report**__\n" + json_data["hourly"]["summary"] + "\n```"
-    #await message.channel.send(summary)
-    count, temp, precip, precipChance, precipType = 0, 0, False, 0,""
-    #Loop goes through the JSON file and outputs the temperature and precip every 4 hours for 8 hours
-    while count < 3:
-        hours = 4*count
-        temp = json_data["hourly"]["data"][hours]["temperature"]
-        precipChance = json_data["hourly"]["data"][hours]["precipProbability"]
-        output = output + "\nIn "+ str(hours) + " hours: The temperature will be " + str(temp) +  u"\u00b0" + "F"
-        if precipChance != 0:
-            precip = True
-            precipType = json_data["hourly"]["data"][hours]["precipType"]
-            output = output + " with a " + "{0:.0%}".format(precipChance) + " chance of " + precipType + "."
-        count+=1
-    output = output + "```"
-    return output
-"""
+#func: recieves weather API JSON and the formatted address and fills list of data every 3 hours for a total of 12 hours. Creates image to display values
+#params: JSON_data is weather API JSON, location is the formatted address for location
 def currentWeather(json_data, location):
     count = 0
-    temp, precipChance, precipType, icon = [None] * 5, [None] * 5, [None] * 5, [None] * 5
+    temp, precipChance, precipType, precipIntensity, icon = [None] * 5, [None] * 5, [None] * 5, [None] * 5, [None] * 5
     time = json_data["hourly"]["data"][0]["time"]
     time_zone = json_data["timezone"]
     #Loop goes through the JSON file and outputs the temperature and precip every 4 hours for 8 hours
@@ -131,6 +113,11 @@ def currentWeather(json_data, location):
         precipChance[count] = "{:.0%}".format(json_data["hourly"]["data"][hours]["precipProbability"])
         if precipChance[count] != "0%" and precipChance[count] != "1%" and precipChance[count] != "2%" and precipChance[count] != "3%" and precipChance[count] != "4%":
             precipType[count] = json_data["hourly"]["data"][hours]["precipType"]
+            precipIntensity[count] = json_data["hourly"]["data"][hours]["precipIntensity"]
+            if precipType[count] != "snow" and  precipIntensity[count] <= .01:
+                icon[count] = "drizzle"
+            if precipType[count] != "snow" and  .3 <= precipIntensity[count]:
+                icon[count] = "storm"
         count = count + 1
 
 
@@ -146,7 +133,6 @@ def currentWeather(json_data, location):
     precip_value_font = ImageFont.truetype('Lib/Fonts/FiraSans-Regular.ttf', 24)
 
     #Icons
-    #TODO: add drizzle/storm based on intensity/lightning
     clear_day = Image.open('Lib/Icons/Sun.jpg')
     clear_night = Image.open('Lib/Icons/Moon.jpg')
     rain = Image.open('Lib/Icons/Cloud-Rain.jpg')
@@ -157,8 +143,8 @@ def currentWeather(json_data, location):
     sleet = Image.open('Lib/Icons/Cloud-Snow-Alt.jpg')
     wind = Image.open('Lib/Icons/Cloud-Wind.jpg')
     fog = Image.open('Lib/Icons/Cloud-Fog-Alt.jpg')
-    #drizzle
-    #storm = Image.open('Lib/Icons/Cloud-Lightning.svg')
+    drizzle = Image.open('Lib/Icons/Cloud-Drizzle.jpg')
+    storm = Image.open('Lib/Icons/Cloud-Lightning.jpg')
 
     #Title + Subtitle
     d = ImageDraw.Draw(img)
@@ -234,13 +220,12 @@ def currentWeather(json_data, location):
 
 
 #forecast()
-#func: On event message that starts with !forecast, takes second argumenet and uses google maps api to get coordinates, uses the coordinates to get JSON from weather API. Fills lists of weather data from API
-#uses data to create 5 day weather forecast
+#func: Recieves weather API JSON and the formatted address and fills list of data for every day for a total of 5 days. Creates image to display values
 #param: json_data: weather data from API, location: formatted address of location
 def forecast(json_data, location):
     count = 0
     #Loop goes through the JSON file and outputs the temperature and precip every 4 hours for 8 hours
-    icon, temp_high, temp_low, precipChance, precipType = [None] * 5, [None] * 5, [None] * 5, [0] * 5, [None] * 5
+    icon, temp_high, temp_low, precipChance, precipType, precipIntensity = [None] * 5, [None] * 5, [None] * 5, [0] * 5, [None] * 5, [None] * 5
     while count < 5:
         hours = count
         summary = json_data["daily"]["summary"]
@@ -259,6 +244,11 @@ def forecast(json_data, location):
         #Below 4% rain type is not displayed
         if precipChance[count] != "0%" and precipChance[count] != "1%" and precipChance[count] != "2%" and precipChance[count] != "3%" and precipChance[count] != "4%":
             precipType[count] = json_data["daily"]["data"][hours]["precipType"]
+            precipIntensity[count] = json_data["daily"]["data"][hours]["precipIntensity"]
+            if precipType[count] != "snow" and  precipIntensity[count] <= .01:
+                icon[count] = "drizzle"
+            if precipType[count] != "snow" and  .3 <= precipIntensity[count]:
+                icon[count] = "storm"
         count+=1
 
     img = Image.new('RGB', (1050, 375), color='white')
@@ -287,7 +277,6 @@ def forecast(json_data, location):
 
 
     #Icons
-    #TODO: add drizzle/storm based on intensity/lightning
     clear_day = Image.open('Lib/Icons/Sun.jpg')
     clear_night = Image.open('Lib/Icons/Moon.jpg')
     rain = Image.open('Lib/Icons/Cloud-Rain.jpg')
@@ -298,8 +287,8 @@ def forecast(json_data, location):
     sleet = Image.open('Lib/Icons/Cloud-Snow-Alt.jpg')
     wind = Image.open('Lib/Icons/Cloud-Wind.jpg')
     fog = Image.open('Lib/Icons/Cloud-Fog-Alt.jpg')
-    #drizzle
-    #storm = Image.open('Lib/Icons/Cloud-Lightning.svg')
+    drizzle = Image.open('Lib/Icons/Cloud-Drizzle.jpg')
+    storm = Image.open('Lib/Icons/Cloud-Lightning.jpg')
 
     #Title + Subtitle
     d = ImageDraw.Draw(img)
@@ -363,7 +352,7 @@ def forecast(json_data, location):
     img.save("forecast_rendered_image.png")
     return
 
-
+#Event Function that activates different functions on command message
 @client.event
 async def on_message(message):
     if message.author == client.user:
@@ -405,4 +394,4 @@ async def on_message(message):
             output = forecast(json_data, location)
             await message.channel.send(file=discord.File('forecast_rendered_image.png'))
 
-client.run('..-')
+client.run('.XRMUFw.-kdM')
