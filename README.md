@@ -1,8 +1,8 @@
 # Weather-Discord-Bot
-##How to Use
+## How to Use
 Add your discord token, darkSky API key, and google maps API key in the powderBot.py file
 Invite bot to server and run python script
-####Commands
+#### Commands
 
 **!help**: Lists all commands 
 
